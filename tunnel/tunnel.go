@@ -40,6 +40,49 @@ func NewService(client agent.ServiceClient) *Service {
 	}
 }
 
+func (s *Service) runTunnel(c net.Conn, dial string) {
+	defer c.Close()
+
+	res, err := s.client.CreateTunnel(&agent.CreateTunnelRequest{
+		Dial: dial,
+	})
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+
+	tunnelID := res.TunnelId
+
+	s.rw.Lock()
+	s.tunnels[tunnelID] = c
+	s.rw.Unlock()
+
+	for {
+		b := make([]byte, 4096)
+		n, err := c.Read(b)
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		if n == 0 {
+			continue
+		}
+
+		res, err := s.client.WriteToTunnel(&agent.WriteToTunnelRequest{
+			TunnelId: tunnelID,
+			Data:     b[:n],
+		})
+		if err != nil {
+			logrus.Error(err)
+			return
+		}
+		if res.Error != "" {
+			logrus.Error(res.Error)
+			return
+		}
+	}
+}
+
 func (s *Service) CreateTunnel(req *gateway.CreateTunnelRequest) (*gateway.CreateTunnelResponse, error) {
 	if req.AgentUuid != "" {
 		return nil, fmt.Errorf("req.AgentUuid (%q) is not handled yet", req.AgentUuid)
@@ -52,54 +95,14 @@ func (s *Service) CreateTunnel(req *gateway.CreateTunnelRequest) (*gateway.Creat
 		}, nil
 	}
 
-	res, err := s.client.CreateTunnel(&agent.CreateTunnelRequest{
-		Dial: req.Dial,
-	})
-	if err != nil {
-		return &gateway.CreateTunnelResponse{
-			Error: err.Error(),
-		}, nil
-	}
-
-	tunnelID := res.TunnelId
 	go func() {
-		var c net.Conn
 		for {
-			c, err = l.Accept()
-			if err == nil {
-				break
-			}
-			logrus.Error(err)
-		}
-		defer c.Close()
-
-		s.rw.Lock()
-		s.tunnels[tunnelID] = c
-		s.rw.Unlock()
-
-		for {
-			b := make([]byte, 4096)
-			n, err := c.Read(b)
+			c, err := l.Accept()
 			if err != nil {
 				logrus.Error(err)
-				return
-			}
-			if n == 0 {
 				continue
 			}
-
-			res, err := s.client.WriteToTunnel(&agent.WriteToTunnelRequest{
-				TunnelId: tunnelID,
-				Data:     b[:n],
-			})
-			if err != nil {
-				logrus.Error(err)
-				return
-			}
-			if res.Error != "" {
-				logrus.Error(res.Error)
-				return
-			}
+			go s.runTunnel(c, req.Dial)
 		}
 	}()
 
