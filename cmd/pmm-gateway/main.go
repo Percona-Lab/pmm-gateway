@@ -18,13 +18,17 @@ package main
 
 import (
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/Percona-Lab/pmm-api/gateway"
 	"github.com/Percona-Lab/wsrpc"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/alecthomas/kingpin.v2"
 
-	"github.com/Percona-Lab/pmm-agent/tunnel"
+	"github.com/Percona-Lab/pmm-api/agent"
+	"github.com/Percona-Lab/pmm-api/gateway"
+	"github.com/Percona-Lab/pmm-gateway/tunnel"
 )
 
 func handler(rw http.ResponseWriter, req *http.Request) {
@@ -34,9 +38,26 @@ func handler(rw http.ResponseWriter, req *http.Request) {
 		http.Error(rw, err.Error(), 400)
 		return
 	}
+	logrus.Infof("Connection from %s.", req.RemoteAddr)
 	defer conn.Close()
 
-	server := new(tunnel.Service)
+	server := tunnel.NewService(agent.NewServiceClient(conn))
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINFO)
+	go func() {
+		const dial = "127.0.0.1:9100"
+		<-signals
+		logrus.Infof("Creating tunnel to %s", dial)
+		res, err := server.CreateTunnel(&gateway.CreateTunnelRequest{
+			Dial: dial,
+		})
+		if err != nil {
+			logrus.Fatal(err)
+		}
+		logrus.Info(res)
+	}()
+
 	err = gateway.NewServiceDispatcher(conn, server).Run()
 	logrus.Infof("Server exited with %v", err)
 }
@@ -46,5 +67,7 @@ func main() {
 	kingpin.Parse()
 
 	http.Handle("/", http.HandlerFunc(handler))
-	logrus.Fatal(http.ListenAndServe("127.0.0.1:7781", nil))
+	const addr = "127.0.0.1:7781"
+	logrus.Infof("Listening on %s...", addr)
+	logrus.Fatal(http.ListenAndServe(addr, nil))
 }

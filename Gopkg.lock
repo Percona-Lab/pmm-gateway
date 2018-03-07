@@ -3,21 +3,18 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/Percona-Lab/pmm-agent"
-  packages = ["tunnel"]
-  revision = "9226592b76d43bf9b2d1a580bbb517ff319649c4"
-
-[[projects]]
-  branch = "master"
   name = "github.com/Percona-Lab/pmm-api"
-  packages = ["gateway"]
-  revision = "48071eac005672813b7c73d236de624675dd03e8"
+  packages = [
+    "agent",
+    "gateway"
+  ]
+  revision = "0437aba11b554a8c5f06c6493a00e6023f9484ac"
 
 [[projects]]
-  branch = "master"
   name = "github.com/Percona-Lab/wsrpc"
   packages = ["."]
-  revision = "39a5cff76bed7783e3d66c60e37d38fd4de8d351"
+  revision = "a774bebe9eb1fd9605a24b928317f653579c4bb3"
+  version = "v0.1.0"
 
 [[projects]]
   branch = "master"
@@ -82,6 +79,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d92afe09f0eb009cd9af4fa5e427900f2f67471a163bf3b4b6e0d25c25a54c9d"
+  inputs-digest = "54544898372f3cba512b861ef1cd548bebda9d4ac63b88b15ae8b368afd226e3"
   solver-name = "gps-cdcl"
   solver-version = 1
