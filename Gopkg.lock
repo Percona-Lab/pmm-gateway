@@ -8,7 +8,7 @@
     "agent",
     "gateway"
   ]
-  revision = "0437aba11b554a8c5f06c6493a00e6023f9484ac"
+  revision = "13e9f3a036ba729c4175ad2a8beac830a9f4576e"
 
 [[projects]]
   name = "github.com/Percona-Lab/wsrpc"

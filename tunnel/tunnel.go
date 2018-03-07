@@ -104,8 +104,7 @@ func (s *Service) CreateTunnel(req *gateway.CreateTunnelRequest) (*gateway.Creat
 	}()
 
 	return &gateway.CreateTunnelResponse{
-		TunnelId: res.TunnelId,
-		Listen:   l.Addr().String(),
+		Listen: l.Addr().String(),
 	}, nil
 }
 
