@@ -8,13 +8,13 @@
     "agent",
     "gateway"
   ]
-  revision = "13e9f3a036ba729c4175ad2a8beac830a9f4576e"
+  revision = "b6dd19d4d60eb11ef54c9bb854073411bedbcbfa"
 
 [[projects]]
   name = "github.com/Percona-Lab/wsrpc"
   packages = ["."]
-  revision = "a774bebe9eb1fd9605a24b928317f653579c4bb3"
-  version = "v0.1.0"
+  revision = "84d9a0b39fed530ed398a894a0afa7ad3364b882"
+  version = "v0.2.1"
 
 [[projects]]
   branch = "master"
@@ -68,7 +68,7 @@
     "unix",
     "windows"
   ]
-  revision = "dd2ff4accc098aceecb86b36eaa7829b2a17b1c9"
+  revision = "349b81fb5c64ec1734eb6ee148df25459ea48517"
 
 [[projects]]
   name = "gopkg.in/alecthomas/kingpin.v2"

@@ -32,7 +32,7 @@ import (
 )
 
 func handler(rw http.ResponseWriter, req *http.Request) {
-	conn, err := wsrpc.Upgrade(rw, req)
+	conn, err := wsrpc.Upgrade(rw, req, nil)
 	if err != nil {
 		logrus.Error(err)
 		http.Error(rw, err.Error(), 400)

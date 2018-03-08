@@ -1,4 +1,4 @@
-all: install-race
+all: install test-race
 
 install:
 	go install -v ./...
@@ -7,6 +7,12 @@ install:
 install-race:
 	go install -v -race ./...
 	go test -v -race -i ./...
+
+test: install
+	go test -v ./...
+
+test-race: install-race
+	go test -v -race ./...
 
 run: install _run
 
