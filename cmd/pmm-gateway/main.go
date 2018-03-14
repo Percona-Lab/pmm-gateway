@@ -67,6 +67,7 @@ func main() {
 
 	// TODO FIXME remove this hack for demo
 	{
+		const uuid = "baf4e293-9f1c-4b3f-9244-02c8f3f37d9d"
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, syscall.SIGINFO)
 		go func() {
@@ -74,12 +75,13 @@ func main() {
 			<-signals
 			logrus.Infof("Creating tunnel to %s", dial)
 			res, err := tunnels.Create(context.TODO(), &managed.TunnelsCreateRequest{
-				Dial: dial,
+				AgentUuid: uuid,
+				Dial:      dial,
 			})
 			if err != nil {
 				logrus.Fatal(err)
 			}
-			logrus.Info(res)
+			logrus.Infof("%+v", res)
 		}()
 	}
 

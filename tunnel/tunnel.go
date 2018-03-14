@@ -196,6 +196,20 @@ func (s *Service) Make(stream agent.Tunnels_MakeServer) error {
 }
 
 func (s *Service) Create(ctx context.Context, req *managed.TunnelsCreateRequest) (*managed.TunnelsCreateResponse, error) {
+	uuid := req.AgentUuid
+	dial := req.Dial
+	// TODO replace with validators
+	if uuid == "" {
+		return &managed.TunnelsCreateResponse{
+			Error: "agent_uuid is not given",
+		}, nil
+	}
+	if dial == "" {
+		return &managed.TunnelsCreateResponse{
+			Error: "dial is not given",
+		}, nil
+	}
+
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return &managed.TunnelsCreateResponse{
@@ -212,18 +226,19 @@ func (s *Service) Create(ctx context.Context, req *managed.TunnelsCreateRequest)
 				close(accepted)
 				return
 			}
+			s.l.Debugf("Accepted connection on %s from %s to dial to %s:%s.", listener.Addr().String(), c.RemoteAddr().String(), uuid, dial)
 			accepted <- c.(*net.TCPConn)
 		}
 	}()
 
 	s.rw.Lock()
-	tunnels := s.tunnels[req.AgentUuid]
+	tunnels := s.tunnels[uuid]
 	tunnels = append(tunnels, tunnel{
-		dial:     req.Dial,
+		dial:     dial,
 		listener: listener,
 		accepted: accepted,
 	})
-	s.tunnels[req.AgentUuid] = tunnels
+	s.tunnels[uuid] = tunnels
 	s.rw.Unlock()
 
 	return &managed.TunnelsCreateResponse{
