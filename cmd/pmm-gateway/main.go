@@ -35,37 +35,6 @@ import (
 	"github.com/Percona-Lab/pmm-gateway/tunnel"
 )
 
-// func handler(rw http.ResponseWriter, req *http.Request) {
-// 	conn, err := wsrpc.Upgrade(rw, req, nil)
-// 	if err != nil {
-// 		logrus.Error(err)
-// 		http.Error(rw, err.Error(), 400)
-// 		return
-// 	}
-// 	logrus.Infof("Connection from %s.", req.RemoteAddr)
-// 	defer conn.Close()
-
-// 	server := tunnel.NewService(agent.NewServiceClient(conn))
-
-// 	signals := make(chan os.Signal, 1)
-// 	signal.Notify(signals, syscall.SIGINFO)
-// 	go func() {
-// 		const dial = "127.0.0.1:9100"
-// 		<-signals
-// 		logrus.Infof("Creating tunnel to %s", dial)
-// 		res, err := server.CreateTunnel(&gateway.CreateTunnelRequest{
-// 			Dial: dial,
-// 		})
-// 		if err != nil {
-// 			logrus.Fatal(err)
-// 		}
-// 		logrus.Info(res)
-// 	}()
-
-// 	err = gateway.NewServiceDispatcher(conn, server).Run()
-// 	logrus.Infof("Server exited with %v", err)
-// }
-
 const (
 	shutdownTimeout = 3 * time.Second
 )
