@@ -19,6 +19,7 @@ package tunnel
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"reflect"
 	"strings"
@@ -150,7 +151,11 @@ func (s *Service) Make(stream agent.Tunnels_MakeServer) error {
 				}
 			}
 			if data.Error != "" {
-				s.l.Error(data.Error)
+				s.l.Errorf("Got error, exiting: %s.", data.Error)
+				return
+			}
+			if data.Closed {
+				s.l.Info("Closed, exiting.")
 				return
 			}
 		}
@@ -167,25 +172,31 @@ func (s *Service) Make(stream agent.Tunnels_MakeServer) error {
 		for {
 			b := make([]byte, 4096)
 			n, readErr := conn.Read(b)
-			s.l.Debugf("Read %d bytes.", n)
-			var readErrS string
-			if readErr != nil {
-				readErrS = readErr.Error()
+			s.l.Debugf("Read %d bytes, read error %v.", n, readErr)
+			data := &agent.TunnelsData{
+				Data: b[:n],
+			}
+			switch readErr {
+			case nil:
+				// nothing
+			case io.EOF:
+				s.l.Info("Read closed.")
+				data.Closed = true
+			default:
+				s.l.Errorf("Failed to read: %s.", readErr)
+				data.Closed = true
+				data.Error = readErr.Error()
 			}
 			env := &agent.TunnelsEnvelopeFromGateway{
 				Payload: &agent.TunnelsEnvelopeFromGateway_Data{
-					Data: &agent.TunnelsData{
-						Error: readErrS,
-						Data:  b[:n],
-					},
+					Data: data,
 				},
 			}
 			if err := stream.Send(env); err != nil {
-				s.l.Error(err)
+				s.l.Errorf("Failed to send message: %s.", err)
 				return
 			}
-			if readErr != nil {
-				s.l.Error(readErr)
+			if data.Closed {
 				return
 			}
 		}
