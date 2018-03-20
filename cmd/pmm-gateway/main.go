@@ -20,9 +20,11 @@ import (
 	"context"
 	"log"
 	"math/rand"
-	"net"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -32,12 +34,104 @@ import (
 	"google.golang.org/grpc"
 	"gopkg.in/alecthomas/kingpin.v2"
 
+	"github.com/Percona-Lab/pmm-gateway/frontend"
 	"github.com/Percona-Lab/pmm-gateway/tunnel"
 )
 
 const (
 	shutdownTimeout = 3 * time.Second
 )
+
+func gRPCServer() *grpc.Server {
+	server := grpc.NewServer()
+	server = grpc.NewServer()
+	tunnels := tunnel.NewService()
+	agent.RegisterTunnelsServer(server, tunnels)
+	managed.RegisterTunnelsServer(server, tunnels)
+
+	// TODO FIXME remove this hack for demo
+	{
+		const uuid = "baf4e293-9f1c-4b3f-9244-02c8f3f37d9d"
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, syscall.SIGINFO)
+		go func() {
+			const dial = "127.0.0.1:9100"
+			<-signals
+			logrus.Infof("Creating tunnel to %s", dial)
+			res, err := tunnels.Create(context.TODO(), &managed.TunnelsCreateRequest{
+				AgentUuid: uuid,
+				Dial:      dial,
+			})
+			if err != nil {
+				logrus.Fatal(err)
+			}
+			logrus.Infof("%+v", res)
+		}()
+	}
+
+	return server
+}
+
+func runServer(ctx context.Context, addr string) {
+	l := logrus.WithField("component", "server")
+	l.Infof("Starting on %s...", addr)
+	defer l.Info("Done.")
+
+	gRPCServer := gRPCServer()
+	frontend := frontend.NewService()
+	handler := func(rw http.ResponseWriter, req *http.Request) {
+		if strings.Contains(req.Header.Get("Content-Type"), "application/grpc") {
+			gRPCServer.ServeHTTP(rw, req)
+		} else {
+			frontend.ServeHTTP(rw, req)
+		}
+	}
+
+	server := http.Server{
+		Addr:    addr,
+		Handler: http.HandlerFunc(handler),
+
+		// TLSConfig: &tls.Config{
+		// 	Certificates: []tls.Certificate{*cert},
+		// 	NextProtos:   []string{"h2"},
+		// },
+
+		ReadTimeout:       10 * time.Minute,
+		ReadHeaderTimeout: 5 * time.Minute,
+		WriteTimeout:      10 * time.Minute,
+		IdleTimeout:       5 * time.Minute,
+		ErrorLog:          log.New(os.Stderr, "server: ", log.Flags()),
+	}
+
+	go func() {
+		err := server.ListenAndServe()
+		if err == http.ErrServerClosed {
+			l.Info(err)
+		} else {
+			l.Error(err)
+		}
+	}()
+
+	<-ctx.Done()
+
+	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	go gRPCServer.GracefulStop()
+	if err := server.Shutdown(ctx); err != nil {
+		l.Error(err)
+	}
+
+	gRPCServer.Stop()
+	if err := server.Close(); err != nil {
+		l.Error(err)
+	}
+}
+
+func runDebugServer(ctx context.Context, addr string) {
+	l := logrus.WithField("component", "debug")
+	l.Infof("Starting on %s...", addr)
+	defer l.Info("Done.")
+}
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
@@ -60,53 +154,19 @@ func main() {
 		cancel()
 	}()
 
-	gRPCServer := grpc.NewServer()
-	tunnels := tunnel.NewService()
-	agent.RegisterTunnelsServer(gRPCServer, tunnels)
-	managed.RegisterTunnelsServer(gRPCServer, tunnels)
+	var wg sync.WaitGroup
 
-	// TODO FIXME remove this hack for demo
-	{
-		const uuid = "baf4e293-9f1c-4b3f-9244-02c8f3f37d9d"
-		signals := make(chan os.Signal, 1)
-		signal.Notify(signals, syscall.SIGINFO)
-		go func() {
-			const dial = "127.0.0.1:9100"
-			<-signals
-			logrus.Infof("Creating tunnel to %s", dial)
-			res, err := tunnels.Create(context.TODO(), &managed.TunnelsCreateRequest{
-				AgentUuid: uuid,
-				Dial:      dial,
-			})
-			if err != nil {
-				logrus.Fatal(err)
-			}
-			logrus.Infof("%+v", res)
-		}()
-	}
-
-	const addr = "127.0.0.1:8080"
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		l.Panic(err)
-	}
+	wg.Add(1)
 	go func() {
-		for {
-			err = gRPCServer.Serve(listener)
-			if err == nil || err == grpc.ErrServerStopped {
-				break
-			}
-			l.Errorf("Failed to serve: %s", err)
-		}
-		l.Info("Server stopped.")
+		defer wg.Done()
+		runServer(ctx, "127.0.0.1:8080")
 	}()
 
-	<-ctx.Done()
-	ctx, cancel = context.WithTimeout(context.Background(), shutdownTimeout)
+	wg.Add(1)
 	go func() {
-		<-ctx.Done()
-		gRPCServer.Stop()
+		defer wg.Done()
+		runDebugServer(ctx, "127.0.0.1:8081")
 	}()
-	gRPCServer.GracefulStop()
-	cancel()
+
+	wg.Wait()
 }
