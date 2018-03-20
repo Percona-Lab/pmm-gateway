@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/metadata"
@@ -237,8 +238,13 @@ func (s *Service) Create(ctx context.Context, req *managed.TunnelsCreateRequest)
 				close(accepted)
 				return
 			}
+
 			s.l.Debugf("Accepted connection on %s from %s to dial to %s:%s.", listener.Addr().String(), c.RemoteAddr().String(), uuid, dial)
-			accepted <- c.(*net.TCPConn)
+			conn := c.(*net.TCPConn)
+			conn.SetKeepAlivePeriod(20 * time.Second)
+			conn.SetKeepAlive(true)
+			// TODO SetReadBuffer, SetWriteBuffer?
+			accepted <- conn
 		}
 	}()
 
